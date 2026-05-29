@@ -711,6 +711,17 @@ function updateSet(key, i, si, field, value) {
 }
 
 function toggleSetDone(key, i, si) {
+  // Save all currently visible input values before re-rendering
+  const exState = sessionState[key].exercicios;
+  TREINOS[key].exercicios.forEach((ex, ei) => {
+    ex.sets && Array.from({length: ex.series}).forEach((_, sii) => {
+      const pesoEl = document.querySelector(`#body-${key}-${ei} .set-row:nth-child(${sii+2}) .set-input:nth-child(1)`);
+      const repsEl = document.querySelector(`#body-${key}-${ei} .set-row:nth-child(${sii+2}) .set-input:nth-child(2)`);
+      if (pesoEl && pesoEl.value !== '') exState[ei].sets[sii].peso = pesoEl.value;
+      if (repsEl && repsEl.value !== '') exState[ei].sets[sii].reps = repsEl.value;
+    });
+  });
+  saveState();
   const s = sessionState[key].exercicios[i].sets[si];
   s.done = !s.done;
   saveState();
@@ -721,7 +732,24 @@ function toggleSetDone(key, i, si) {
   }, 10);
 }
 
+function saveAllInputs(key) {
+  const exState = sessionState[key].exercicios;
+  TREINOS[key].exercicios.forEach((ex, ei) => {
+    const body = document.getElementById(`body-${key}-${ei}`);
+    if (!body) return;
+    body.querySelectorAll('.set-row').forEach((row, sii) => {
+      const inputs = row.querySelectorAll('.set-input');
+      if (inputs[0] && inputs[0].value !== '') exState[ei].sets[sii].peso = inputs[0].value;
+      if (inputs[1] && inputs[1].value !== '') exState[ei].sets[sii].reps = inputs[1].value;
+    });
+    const nota = body.querySelector('textarea');
+    if (nota) exState[ei].notas = nota.value;
+  });
+  saveState();
+}
+
 function toggleExerciseDone(key, i) {
+  saveAllInputs(key);
   sessionState[key].exercicios[i].concluido = !sessionState[key].exercicios[i].concluido;
   saveState();
   renderTreino(key);
@@ -733,6 +761,7 @@ function updateNota(key, i, value) {
 }
 
 function salvarTreino(key) {
+  saveAllInputs(key);
   const state = sessionState[key];
   const treino = TREINOS[key];
   const historico = JSON.parse(localStorage.getItem('myfit_historico') || '[]');
@@ -851,6 +880,7 @@ function showCalDetail(dateKey) {
       html += '<div class="cal-detail-treino"><div class="cal-detail-header"><div class="cal-detail-key">🏃</div><div class="cal-detail-nome">' + r.nome + '</div></div>';
       if (r.duracao) html += '<div class="cal-detail-ex"><span>Duração</span><span class="cal-detail-peso">' + r.duracao + '</span></div>';
       if (r.obs) html += '<div class="cal-detail-ex"><span>Obs</span><span class="cal-detail-peso">' + r.obs + '</span></div>';
+      html += '<button onclick="deletarTreinoCal(' + r.id + ')" style="margin-top:10px;width:100%;padding:8px;border-radius:8px;border:1px solid var(--danger);background:none;color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;">🗑 Apagar</button>';
       html += '</div>';
       return;
     }
@@ -863,6 +893,7 @@ function showCalDetail(dateKey) {
       html += '<div class="cal-detail-ex"><span>' + ex.nome + '</span>' + (pesoStr ? '<span class="cal-detail-peso">' + pesoStr + '</span>' : '') + '</div>';
     });
     if (totalPeso > 0) html += '<div style="margin-top:8px;font-size:11px;color:var(--muted)">Volume: <strong style="color:var(--accent)">' + totalPeso.toFixed(0) + ' kg</strong> &nbsp;&#183;&nbsp; ' + doneSets + ' s\u00e9ries</div>';
+    html += '<button onclick="deletarTreinoCal(' + r.id + ')" style="margin-top:10px;width:100%;padding:8px;border-radius:8px;border:1px solid var(--danger);background:none;color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;">🗑 Apagar</button>';
     html += '</div>';
   });
   html += '</div>';
@@ -872,6 +903,17 @@ function showCalDetail(dateKey) {
   panel.dataset.key = dateKey;
   panel.innerHTML = html;
   document.getElementById('calendarCard').appendChild(panel);
+}
+
+function deletarTreinoCal(id) {
+  if (!confirm('Apagar este treino?')) return;
+  let historico = JSON.parse(localStorage.getItem('myfit_historico') || '[]');
+  const dateKey = document.getElementById('calDetailPanel').dataset.key;
+  historico = historico.filter(r => r.id !== id);
+  localStorage.setItem('myfit_historico', JSON.stringify(historico));
+  renderStats();
+  // Reopen detail if there are still entries for that day
+  setTimeout(() => showCalDetail(dateKey), 50);
 }
 
 function getStreak(historico) {
